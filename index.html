@@ -83,14 +83,14 @@ function renderTerms(year){
 }
 function renderArticle(year,term){
   const pdfFiles = {
-    "2024-1": "pdfs/vonkelprop2024kwartaal1.pdf",
-    "2024-2": "pdfs/vonkelprop2024kwartaal2.pdf",
-    "2024-3": "pdfs/vonkelprop2024kwartaal3.pdf",
-    "2025-1": "pdfs/vonkelprop2025kwartaal1.pdf",
-    "2025-2": "pdfs/vonkelprop2025kwartaal2.pdf",
-    "2026-1": "pdfs/vonkelprop2026kwartaal1.pdf",
-    "2026-2": "pdfs/vonkelprop2026kwartaal2.pdf",
-    "2026-3": "pdfs/vonkelprop2026kwartaal3.pdf"
+    "2024-1": "vonkelprop2024kwartaal1.pdf",
+    "2024-2": "vonkelprop2024kwartaal2.pdf",
+    "2024-3": "vonkelprop2024kwartaal3.pdf",
+    "2025-1": "vonkelprop2025kwartaal1.pdf",
+    "2025-2": "vonkelprop2025kwartaal2.pdf",
+    "2026-1": "vonkelprop2026kwartaal1.pdf",
+    "2026-2": "vonkelprop2026kwartaal2.pdf",
+    "2026-3": "vonkelprop2026kwartaal3.pdf"
   };
   const pdfPath = pdfFiles[`${year}-${term}`];
   archive.innerHTML = `
@@ -99,13 +99,51 @@ function renderArticle(year,term){
     <div class="article-panel">
       <h3>${year} — Kwartaal ${term}</h3>
       ${pdfPath
-        ? `<div class="pdf-placeholder" style="padding:0;height:75vh;min-height:520px">
-             <iframe title="${year} Kwartaal ${term} newspaper PDF" src="${pdfPath}" style="width:100%;height:100%;border:0;background:#fff"></iframe>
-           </div>
-           <p><a href="${pdfPath}" target="_blank" rel="noopener">Open PDF in a new tab</a></p>`
+        ? `<p><a href="/${pdfPath}" target="_blank" rel="noopener">Open PDF in a new tab</a> · <a href="/${pdfPath}" download>Laai PDF af</a></p>
+           <div id="pdf-pages" aria-label="Koerantbladsye" style="width:100%;overflow:auto;background:#edf2f1">
+             <p role="status">Besig om die koerant te laai…</p>
+           </div>`
         : `<div class="pdf-placeholder">niks hierso sorry</div>`}
     </div>`;
+  if (pdfPath) renderPdfPages(pdfPath, document.getElementById("pdf-pages"));
   archive.scrollIntoView({behavior:"smooth", block:"start"});
+}
+async function renderPdfPages(pdfPath, container){
+  let loadingTask;
+  try {
+    const pdfjs = await import("/vendor/pdfjs/pdf.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
+    loadingTask = pdfjs.getDocument({url: new URL(`/${pdfPath}`, location.origin).href});
+    const pdf = await loadingTask.promise;
+    if (!container.isConnected) return;
+    container.replaceChildren();
+    for (let number = 1; number <= pdf.numPages; number++) {
+      if (!container.isConnected) break;
+      const page = await pdf.getPage(number);
+      const base = page.getViewport({scale:1});
+      const width = Math.max(240, container.clientWidth);
+      const scale = Math.min(window.devicePixelRatio || 1, 1.5) * width / base.width;
+      const viewport = page.getViewport({scale});
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.cssText = "display:block;width:100%;height:auto;margin-bottom:12px;background:white";
+      canvas.setAttribute("role", "img");
+      canvas.setAttribute("aria-label", `Koerantbladsy ${number}`);
+      container.append(canvas);
+      await page.render({canvasContext:canvas.getContext("2d"), viewport}).promise;
+      page.cleanup();
+    }
+  } catch (error) {
+    if (container.isConnected) {
+      const message = document.createElement("p");
+      message.setAttribute("role", "alert");
+      message.textContent = "Die koerant kon nie hier laai nie. Gebruik die skakels hierbo om die PDF oop te maak of af te laai.";
+      container.append(message);
+    }
+  } finally {
+    if (loadingTask) await loadingTask.destroy();
+  }
 }
 function showWelcome(){
   archive.hidden = true;
