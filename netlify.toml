@@ -1,0 +1,12 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/Padda_code.html"
+  to = "/"
+  status = 301
+
+[[redirects]]
+  from = "/pdfs/:file"
+  to = "/:file"
+  status = 301
